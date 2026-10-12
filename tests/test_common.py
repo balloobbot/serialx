@@ -151,6 +151,15 @@ def test_register_uri_handler_dispatch_and_unregister() -> None:
             "esphome://host/?noise_psk=REDACTED&password=REDACTED&mode=rs485",
         ),
         ("esphome://host/?key", "esphome://host/?key=REDACTED"),
+        ("esphome:///?key=c2VjcmV0", "esphome:///?key=REDACTED"),
+        (
+            "esphome://?key=c2VjcmV0&port_name=uart",
+            "esphome://?key=REDACTED&port_name=uart",
+        ),
+        ("esphome://host/?k%65y=c2VjcmV0", "esphome://host/?k%65y=REDACTED"),
+        ("esphome://host/?k\ney=c2VjcmV0", "esphome://host/?k\ney=REDACTED"),
+        ("esphome://host/?key=c2VjcmV0#frag", "esphome://host/?key=REDACTED#frag"),
+        ("esphome://[::1/?key=c2VjcmV0", "esphome://[::1/?key=REDACTED"),
     ],
 )
 def test_redact_uri(uri: str, expected: str) -> None:
