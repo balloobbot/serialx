@@ -219,20 +219,19 @@ def translate_esphome_errors(
             return await func(*args, **kwargs)
         except (TimeoutAPIError, ResolveTimeoutAPIError) as exc:
             raise TimeoutError(str(exc)) from exc
+        except (
+            ConnectionNotEstablishedAPIError,
+            SocketAPIError,
+            ResolveAPIError,
+            ReadFailedAPIError,
+            PingFailedAPIError,
+        ) as exc:
+            raise ConnectionError(str(exc)) from exc
         except APIConnectionError as exc:
             # The client raises the base class when it is not connected. Only
             # transport failures should become I/O errors: authentication and
             # protocol errors also inherit from APIConnectionError.
-            if type(exc) is APIConnectionError or isinstance(
-                exc,
-                (
-                    ConnectionNotEstablishedAPIError,
-                    SocketAPIError,
-                    ResolveAPIError,
-                    ReadFailedAPIError,
-                    PingFailedAPIError,
-                ),
-            ):
+            if type(exc) is APIConnectionError:
                 raise ConnectionError(str(exc)) from exc
             raise SerialException(str(exc)) from exc
 
