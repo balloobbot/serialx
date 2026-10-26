@@ -368,7 +368,7 @@ async def test_open_disconnected_api_raises_connection_error(
     """An offline externally managed API is an I/O failure callers can retry."""
     api = APIClient(address="127.0.0.1", port=ESPHOME_DEFAULT_PORT, password=None)
     if connection_exists:
-        api._create_connection(on_stop=None, log_errors=False)
+        await api.start_resolve_host(log_errors=False)
 
     with pytest.raises(
         ConnectionError, match="Not connected|Authenticated connection not ready"
