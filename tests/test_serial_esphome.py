@@ -25,6 +25,7 @@ from aioesphomeapi.core import (
     BadMACAddressAPIError,
     BadNameAPIError,
     ConnectionNotEstablishedAPIError,
+    EncryptionHelloAPIError,
     HandshakeAPIError,
     InvalidAuthAPIError,
     InvalidEncryptionKeyAPIError,
@@ -370,7 +371,7 @@ async def test_open_disconnected_api_raises_connection_error(
         api._create_connection(on_stop=None, log_errors=False)
 
     with pytest.raises(
-        OSError, match="Not connected|Authenticated connection not ready"
+        ConnectionError, match="Not connected|Authenticated connection not ready"
     ) as exc_info:
         await open_serial_connection(
             url=None,
@@ -380,7 +381,6 @@ async def test_open_disconnected_api_raises_connection_error(
             baudrate=115200,
         )
 
-    assert isinstance(exc_info.value, ConnectionError)
     assert isinstance(exc_info.value.__cause__, ConnectionNotEstablishedAPIError)
     assert not api.is_connected
 
@@ -413,6 +413,44 @@ async def test_open_api_error_classification(
     error: APIConnectionError, expected_type: type[Exception]
 ) -> None:
     """Opening preserves the distinction between transport and protocol failures."""
+    with patch.object(APIClient, "connect", side_effect=error):
+        with pytest.raises(expected_type) as exc_info:
+            await open_serial_connection(
+                url="esphome://127.0.0.1:6053?port_name=test", baudrate=115200
+            )
+
+    assert type(exc_info.value) is expected_type
+    assert exc_info.value.__cause__ is error
+
+
+@pytest.mark.parametrize(
+    ("error", "cause", "expected_type"),
+    [
+        (
+            HandshakeAPIError("Handshake failed"),
+            ConnectionResetError(),
+            ConnectionError,
+        ),
+        (HandshakeAPIError("Handshake failed"), ValueError(), SerialException),
+        # aioesphomeapi reports this as a likely encryption mismatch
+        (
+            EncryptionHelloAPIError("Dropped after hello"),
+            ConnectionResetError(),
+            SerialException,
+        ),
+        (
+            InvalidEncryptionKeyAPIError("Invalid key"),
+            ConnectionResetError(),
+            SerialException,
+        ),
+    ],
+)
+async def test_open_handshake_error_classification(
+    error: HandshakeAPIError, cause: Exception, expected_type: type[Exception]
+) -> None:
+    """Only a socket error wrapped in the bare `HandshakeAPIError` is retryable."""
+    error.__cause__ = cause
+
     with patch.object(APIClient, "connect", side_effect=error):
         with pytest.raises(expected_type) as exc_info:
             await open_serial_connection(

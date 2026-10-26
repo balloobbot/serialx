@@ -40,6 +40,7 @@ from aioesphomeapi.client import MIN_VERSION_PROXY_ACK, APIClient
 from aioesphomeapi.core import (  # type: ignore[attr-defined]
     APIConnectionError,
     ConnectionNotEstablishedAPIError,
+    HandshakeAPIError,
     PingFailedAPIError,
     PingRequest,
     PingResponse,
@@ -230,9 +231,15 @@ def translate_esphome_errors(
             raise ConnectionError(str(exc)) from exc
         except APIConnectionError as exc:
             # A clean disconnect (device reboot, `api.disconnect()`) fails pending
-            # requests with the bare base class
+            # requests with the bare base class.
             if type(exc) is APIConnectionError:
                 raise ConnectionError(str(exc)) from exc
+
+            # A socket error mid-handshake is wrapped in the bare `HandshakeAPIError`,
+            # unlike its subclasses, which report encryption misconfiguration.
+            if type(exc) is HandshakeAPIError and isinstance(exc.__cause__, OSError):
+                raise ConnectionError(str(exc)) from exc
+
             raise SerialException(str(exc)) from exc
 
     return cast(Callable[_P, Coroutine[Any, Any, _T]], wrapper)
