@@ -360,11 +360,18 @@ async def test_connect_timeout_raises_timeout_error() -> None:
                 pass
 
 
-async def test_open_disconnected_api_raises_connection_error() -> None:
+@pytest.mark.parametrize("connection_exists", [False, True])
+async def test_open_disconnected_api_raises_connection_error(
+    connection_exists: bool,
+) -> None:
     """An offline externally managed API is an I/O failure callers can retry."""
     api = APIClient(address="127.0.0.1", port=ESPHOME_DEFAULT_PORT, password=None)
+    if connection_exists:
+        api._create_connection(on_stop=None, log_errors=False)
 
-    with pytest.raises(OSError, match="Not connected") as exc_info:
+    with pytest.raises(
+        OSError, match="Not connected|Authenticated connection not ready"
+    ) as exc_info:
         await open_serial_connection(
             url=None,
             transport_cls=ESPHomeSerialTransport,
@@ -374,14 +381,14 @@ async def test_open_disconnected_api_raises_connection_error() -> None:
         )
 
     assert isinstance(exc_info.value, ConnectionError)
-    assert isinstance(exc_info.value.__cause__, APIConnectionError)
+    assert isinstance(exc_info.value.__cause__, ConnectionNotEstablishedAPIError)
     assert not api.is_connected
 
 
 @pytest.mark.parametrize(
     ("error", "expected_type"),
     [
-        (APIConnectionError("Not connected"), ConnectionError),
+        (APIConnectionError("Unclassified API error"), SerialException),
         (ConnectionNotEstablishedAPIError("Not ready"), ConnectionError),
         (SocketAPIError("Connection refused"), ConnectionError),
         (SocketClosedAPIError("Connection closed"), ConnectionError),

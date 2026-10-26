@@ -229,11 +229,6 @@ def translate_esphome_errors(
         ) as exc:
             raise ConnectionError(str(exc)) from exc
         except APIConnectionError as exc:
-            # The client raises the base class when it is not connected. Only
-            # transport failures should become I/O errors: authentication and
-            # protocol errors also inherit from APIConnectionError.
-            if type(exc) is APIConnectionError:
-                raise ConnectionError(str(exc)) from exc
             raise SerialException(str(exc)) from exc
 
     return cast(Callable[_P, Coroutine[Any, Any, _T]], wrapper)
