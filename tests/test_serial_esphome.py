@@ -388,7 +388,7 @@ async def test_open_disconnected_api_raises_connection_error(
 @pytest.mark.parametrize(
     ("error", "expected_type"),
     [
-        (APIConnectionError("Unclassified API error"), SerialException),
+        (APIConnectionError("Connection closed"), ConnectionError),
         (ConnectionNotEstablishedAPIError("Not ready"), ConnectionError),
         (SocketAPIError("Connection refused"), ConnectionError),
         (SocketClosedAPIError("Connection closed"), ConnectionError),
@@ -872,6 +872,31 @@ async def test_data_before_connection_made_is_held() -> None:
     on_data = api.subscribe_serial_proxy_data.call_args.args[0]
     on_data(SerialProxyDataReceived(instance=0, data=b"late"))  # type:ignore[call-arg]
     assert events == ["connection_made", b"early", b"late"]
+
+    transport.close()
+    await transport.wait_closed()
+
+
+async def test_flush_clean_disconnect_raises_connection_error() -> None:
+    """A device-initiated disconnect (e.g. reboot) fails a pending flush retryably."""
+    api = mock_api_client("Zigbee")
+    error = APIConnectionError("Connection closed")
+    api.attach_mock(AsyncMock(side_effect=error), "serial_proxy_flush")
+
+    transport, _ = await create_serial_connection(
+        asyncio.get_running_loop(),
+        asyncio.Protocol,
+        url=None,
+        baudrate=115200,
+        transport_cls=ESPHomeSerialTransport,
+        api=api,
+        port_name="Zigbee",
+    )
+
+    with pytest.raises(ConnectionError, match="Connection closed") as exc_info:
+        await transport.flush()
+
+    assert exc_info.value.__cause__ is error
 
     transport.close()
     await transport.wait_closed()

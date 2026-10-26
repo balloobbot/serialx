@@ -229,6 +229,10 @@ def translate_esphome_errors(
         ) as exc:
             raise ConnectionError(str(exc)) from exc
         except APIConnectionError as exc:
+            # A clean disconnect (device reboot, `api.disconnect()`) fails pending
+            # requests with the bare base class
+            if type(exc) is APIConnectionError:
+                raise ConnectionError(str(exc)) from exc
             raise SerialException(str(exc)) from exc
 
     return cast(Callable[_P, Coroutine[Any, Any, _T]], wrapper)
